@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "./supabase";
 
 const FEATURES = [
   { icon: (<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>), title: "Registru digital al proiectului", desc: "Toate documentele într-un singur loc: autorizații, avize, polițe, contracte — cu status în timp real. Știi instant ce e valid, ce expiră și ce lipsește." },
@@ -217,7 +218,31 @@ export default function App() {
   const [legalModal, setLegalModal] = useState(null);
   const [cookieConsent, setCookieConsent] = useState("undecided");
 
-  const handleSubmit = () => { if (email && email.includes("@")) setSubmitted(true); };
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async () => {
+    if (!email || !email.includes("@")) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const { error: dbError } = await supabase
+        .from("waitlist")
+        .insert({ email: email.trim().toLowerCase(), role: role || null, consent: true });
+      if (dbError) {
+        if (dbError.code === "23505") {
+          setError("Acest email este deja înscris.");
+        } else {
+          setError("A apărut o eroare. Încearcă din nou.");
+        }
+      } else {
+        setSubmitted(true);
+      }
+    } catch {
+      setError("A apărut o eroare. Încearcă din nou.");
+    }
+    setSubmitting(false);
+  };
 
   const LP = { privacy: { title: "Politica de confidențialitate", content: PRIVACY_POLICY }, cookies: { title: "Politica cookies", content: COOKIES_POLICY }, terms: { title: "Termeni și condiții", content: TERMS } };
 
@@ -419,9 +444,10 @@ export default function App() {
             <p style={{ fontSize: 17, color: "#5f5e5a", lineHeight: 1.6, marginBottom: 32 }}>Lansăm în curând. Lasă-ne adresa de email și te anunțăm când platforma e gata. Primii 50 de utilizatori primesc acces gratuit 6 luni.</p>
             <div style={{ display: "flex", gap: 10, maxWidth: 480, margin: "0 auto 16px", flexWrap: "wrap" }}>
               <input type="email" placeholder="adresa@email.ro" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSubmit()} style={{ flex: 1, minWidth: 200, padding: "14px 18px", borderRadius: 10, border: "1.5px solid #d3d1c7", fontSize: 15, outline: "none", background: "#fff" }} />
-              <button onClick={handleSubmit} className="cta-btn" style={{ padding: "14px 28px", borderRadius: 10, background: "#0F6E56", color: "#fff", fontSize: 15, fontWeight: 600 }}>Vreau acces</button>
+              <button onClick={handleSubmit} disabled={submitting} className="cta-btn" style={{ padding: "14px 28px", borderRadius: 10, background: submitting ? "#888780" : "#0F6E56", color: "#fff", fontSize: 15, fontWeight: 600, opacity: submitting ? 0.7 : 1 }}>{submitting ? "Se trimite..." : "Vreau acces"}</button>
             </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+            {error && <p style={{ fontSize: 13, color: "#c53030", marginTop: 8 }}>{error}</p>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: error ? 8 : 0 }}>
               {["Beneficiar", "Diriginte", "Constructor", "Proiectant"].map((r) => (
                 <button key={r} onClick={() => setRole(role === r ? "" : r)} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 13, fontWeight: 500, border: role === r ? "1.5px solid #0F6E56" : "1.5px solid #d3d1c7", background: role === r ? "#E1F5EE" : "#fff", color: role === r ? "#0F6E56" : "#5f5e5a", cursor: "pointer", transition: "all .15s ease" }}>{r}</button>
               ))}
